@@ -9,14 +9,15 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import * as admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import type { LeaveApplication } from '@/lib/types';
 
 // Initialize Firebase Admin SDK if not already initialized
-if (!admin.apps.length) {
-  admin.initializeApp();
+if (!getApps().length) {
+  initializeApp();
 }
-const db = admin.firestore();
+const db = getFirestore();
 
 const UpdateLeaveStatusInputSchema = z.object({
   applicationId: z.string(),
@@ -47,69 +48,71 @@ const updateLeaveStatusFlow = ai.defineFlow(
     const appDocRef = db.collection("leaveApplications").doc(applicationId);
 
     try {
-      const appDoc = await appDocRef.get();
-      if (!appDoc.exists) {
-        return { success: false, error: "Application not found." };
-      }
-      const application = appDoc.data() as LeaveApplication;
-
-      let newStatus: LeaveApplication['status'] | null = null;
-      let updateData: any = {};
-
-      const actorDoc = await db.collection("users").doc(actorId).get();
-      const actorRoleDoc = actorDoc.exists && actorDoc.data()?.roleId ? await db.collection('roles').doc(actorDoc.data()!.roleId).get() : null;
-      const isHod = actorRoleDoc?.exists && actorRoleDoc.data()?.name === 'Head of Department';
-
-      // Handle Acting Officer Actions
-      if (action === "Accept Acting" || action === "Reject Acting") {
-        if (application.status !== "Pending Acting Acceptance" || application.actingOfficerId !== actorId) {
-          return { success: false, error: "You are not authorized to take this action on this application at its current stage." };
+      await db.runTransaction(async (transaction) => {
+        const appDoc = await transaction.get(appDocRef);
+        if (!appDoc.exists) {
+          throw new Error("Application not found.");
         }
-        newStatus = action === "Accept Acting" ? "Pending" : "Acting Rejected";
-        updateData['comments.acting'] = comment;
-      }
-      // Handle Recommender Actions
-      else if (action === "Recommend") {
-        if (application.status !== "Pending" || application.recommenderId !== actorId) {
-          return { success: false, error: "You are not authorized to recommend this application." };
-        }
-        newStatus = "Recommended";
-        updateData['comments.recommender'] = comment;
-      }
-      // Handle Approver Actions
-      else if (action === "Approve") {
-        if (application.status !== "Recommended" || (application.approverId !== actorId && !isHod)) {
-            return { success: false, error: "You are not authorized to approve this application." };
-        }
-        newStatus = "Approved";
-        updateData['comments.approver'] = comment;
-      }
-      // Handle Reject Action (can be done by Recommender, Approver, or HOD)
-      else if (action === "Reject") {
-        const isRecommender = application.status === "Pending" && application.recommenderId === actorId;
-        const isApprover = application.status === "Recommended" && application.approverId === actorId;
-        const isHodRejecting = application.status === "Recommended" && isHod;
+        const application = appDoc.data() as LeaveApplication;
 
-        if (!isRecommender && !isApprover && !isHodRejecting) {
-             return { success: false, error: "You are not authorized to reject this application at its current stage." };
+        let newStatus: LeaveApplication['status'] | null = null;
+        let updateData: any = {};
+
+        const actorDoc = await transaction.get(db.collection("users").doc(actorId));
+        const actorRoleDoc = actorDoc.exists && actorDoc.data()?.roleId ? await transaction.get(db.collection('roles').doc(actorDoc.data()!.roleId)) : null;
+        const isHod = actorRoleDoc?.exists && actorRoleDoc.data()?.name === 'Head of Department';
+
+        // Handle Acting Officer Actions
+        if (action === "Accept Acting" || action === "Reject Acting") {
+          if (application.status !== "Pending Acting Acceptance" || application.actingOfficerId !== actorId) {
+            throw new Error("You are not authorized to take this action on this application at its current stage.");
+          }
+          newStatus = action === "Accept Acting" ? "Pending" : "Acting Rejected";
+          updateData['comments.acting'] = comment;
         }
-        
-        newStatus = "Rejected";
-        if (isRecommender) {
-            updateData['comments.recommender'] = comment;
-        } else { // Approver or HOD
-            updateData['comments.approver'] = comment;
+        // Handle Recommender Actions
+        else if (action === "Recommend") {
+          if (application.status !== "Pending" || application.recommenderId !== actorId) {
+            throw new Error("You are not authorized to recommend this application.");
+          }
+          newStatus = "Recommended";
+          updateData['comments.recommender'] = comment;
         }
-      }
+        // Handle Approver Actions
+        else if (action === "Approve") {
+          if (application.status !== "Recommended" || (application.approverId !== actorId && !isHod)) {
+              throw new Error("You are not authorized to approve this application.");
+          }
+          newStatus = "Approved";
+          updateData['comments.approver'] = comment;
+        }
+        // Handle Reject Action (can be done by Recommender, Approver, or HOD)
+        else if (action === "Reject") {
+          const isRecommender = application.status === "Pending" && application.recommenderId === actorId;
+          const isApprover = application.status === "Recommended" && application.approverId === actorId;
+          const isHodRejecting = application.status === "Recommended" && isHod;
 
-      if (!newStatus) {
-        return { success: false, error: "Invalid action for the current application status." };
-      }
+          if (!isRecommender && !isApprover && !isHodRejecting) {
+               throw new Error("You are not authorized to reject this application at its current stage.");
+          }
+          
+          newStatus = "Rejected";
+          if (isRecommender) {
+              updateData['comments.recommender'] = comment;
+          } else { // Approver or HOD
+              updateData['comments.approver'] = comment;
+          }
+        }
 
-      updateData.status = newStatus;
-      updateData.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+        if (!newStatus) {
+          throw new Error("Invalid action for the current application status.");
+        }
 
-      await appDocRef.update(updateData);
+        updateData.status = newStatus;
+        updateData.updatedAt = new Date();
+
+        transaction.update(appDocRef, updateData);
+      });
 
       return { success: true };
 

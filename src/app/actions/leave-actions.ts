@@ -1,13 +1,14 @@
 'use server';
 
 import { updateLeaveStatus, UpdateLeaveStatusInput } from "@/ai/flows/update-leave-status-flow";
-import * as admin from 'firebase-admin';
+import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp, getApps } from 'firebase-admin/app';
 
-if (!admin.apps.length) {
-  admin.initializeApp();
+if (!getApps().length) {
+  initializeApp();
 }
 
-const db = admin.firestore();
+const db = getFirestore();
 
 /**
  * A server action to securely update the status of a leave application.
@@ -27,7 +28,7 @@ export async function cancelLeaveApplicationAction(applicationId: string): Promi
       const appDocRef = db.collection("leaveApplications").doc(applicationId);
       await appDocRef.update({
         status: 'Cancelled',
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: new Date(),
       });
       return { success: true };
     } catch (error: any) {
