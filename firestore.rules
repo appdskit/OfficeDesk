@@ -1,0 +1,116 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+<<<<<<< HEAD
+  
+    // Deny all reads and writes by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Allow authenticated users to read general data
+    match /divisions/{divisionId} {
+      allow read: if request.auth != null;
+    }
+    match /roles/{roleId} {
+      allow read: if request.auth != null;
+    }
+
+    // Rules for the 'users' collection
+    match /users/{userId} {
+      // Any authenticated user can read any user profile (for selectors, etc.)
+      allow read: if request.auth != "null";
+      // Users can only create their own user document
+      allow create: if request.auth.uid == userId;
+       // Users can only update their own profile data, but Admins can update any.
+      allow update: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleName == 'Admin';
+    }
+    
+    // Rules for the 'staffProfiles' collection
+    match /staffProfiles/{profileId} {
+        // Allow read if user is authenticated
+        allow read: if request.auth != null;
+        // Allow create if the user is creating their own profile
+        allow create: if request.auth.uid == request.resource.data.createdBy;
+        // Allow update if user is the creator
+        allow update: if request.auth.uid == resource.data.createdBy;
+        // Disallow delete for now to prevent accidental data loss
+        allow delete: if false;
+    }
+
+    // Rules for the 'leaveApplications' collection
+    match /leaveApplications/{applicationId} {
+      // Allow read access if the user is the applicant, recommender, approver, or acting officer.
+      allow read: if request.auth != null && 
+                  (request.auth.uid == resource.data.userId || 
+                   request.auth.uid == resource.data.recommenderId || 
+                   request.auth.uid == resource.data.approverId ||
+                   request.auth.uid == resource.data.actingOfficerId);
+                   
+      // Allow users to create their own leave applications.
+      allow create: if request.auth.uid == request.resource.data.userId;
+
+      // Allow users to cancel their own application, or allow status updates by authorized parties.
+      allow update: if request.auth != null && 
+                    ((request.resource.data.status == 'Cancelled' && resource.data.userId == request.auth.uid) ||
+                     (request.resource.data.status != resource.data.status && 
+                       (request.auth.uid == resource.data.recommenderId ||
+                        request.auth.uid == resource.data.approverId ||
+                        request.auth.uid == resource.data.actingOfficerId ||
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleName == 'Head of Department'
+                       )
+                     ));
+      
+      // Prevent deletion of leave records.
+      allow delete: if false;
+    }
+    
+    // Rules for 'leaveBalances' collection
+    match /leaveBalances/{userId} {
+        // Users can read their own balance
+        allow read: if request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions.leave.hasAny(['manage_balance', 'view_summary']);
+        // Only users with 'manage_balance' permission can write.
+        allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions.leave.hasAny(['manage_balance']);
+=======
+
+    // Users can read other user profiles (for dropdowns, etc.) but only update their own.
+    match /users/{userId} {
+      allow get, list: if request.auth != null;
+      allow create: if false; // Should be created by backend flow
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false; // Should be handled by backend flow
+    }
+
+    // Staff profiles can be read by anyone authenticated, but only created/updated by the owner.
+    match /staffProfiles/{profileId} {
+      allow get, list: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.createdBy == request.auth.uid;
+    }
+
+    // Divisions and Roles are read-only for clients. They must be managed by an admin backend.
+    match /divisions/{divisionId} {
+      allow get, list: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /roles/{roleId} {
+      allow get, list: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Leave Applications can be created by any authenticated user.
+    // They can only update their own application if they are cancelling it.
+    // All other status changes must go through the backend flow.
+    match /leaveApplications/{applicationId} {
+      allow get, list: if request.auth != null;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid
+                    && request.resource.data.status == 'Cancelled';
+      allow delete: if false; // Disallow direct deletion
+>>>>>>> c7303cc (studio-9919413499:~/studio{main}$ firebase deploy --only firestore:rules)
+    }
+  }
+}
