@@ -79,10 +79,10 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
             return { 
                 ...data, 
                 id: doc.id, 
-                startDate: data.startDate instanceof Timestamp ? data.startDate.toDate() : new Date(data.startDate), 
-                resumeDate: data.resumeDate instanceof Timestamp ? data.resumeDate.toDate() : new Date(data.resumeDate),
-                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt),
-                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(data.updatedAt),
+                startDate: data.startDate instanceof Timestamp ? data.startDate.toDate() : new Date(data.startDate.seconds * 1000), 
+                resumeDate: data.resumeDate instanceof Timestamp ? data.resumeDate.toDate() : new Date(data.resumeDate.seconds * 1000),
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt.seconds * 1000),
+                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(data.updatedAt.seconds * 1000),
             } as LeaveApplication;
         });
         const users = usersSnapshot.docs.map(doc => doc.data() as UserProfile);
@@ -124,7 +124,6 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
       }
     };
 
-    fetchSummary();
     const unsubApps = onSnapshot(query(collection(db, "leaveApplications"), where("status", "==", "Approved")), fetchSummary);
     
     return () => {
@@ -138,7 +137,8 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
         const startOfSearchDate = startOfDay(searchDate);
         const onLeave = allApplications.filter(app => {
             try {
-                const leaveInterval = { start: startOfDay(app.startDate), end: endOfDay(app.resumeDate) };
+                // For a leave from day A to day B, the person is back on day B, so they are "on leave" up to the day *before* B.
+                const leaveInterval = { start: startOfDay(app.startDate), end: endOfDay(new Date(app.resumeDate.getTime() - 1)) };
                 return isWithinInterval(startOfSearchDate, leaveInterval);
             } catch (e) {
                 console.warn("Invalid date encountered in application:", app.id, app.startDate, app.resumeDate);
@@ -269,7 +269,7 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
   return (
     <div className="space-y-6">
         <div>
-            <h3 className="text-lg font-semibold mb-2">Today's Leave Staff</h3>
+            <h3 className="text-lg font-semibold mb-2">Today On Leave</h3>
             <div className="flex items-center gap-4 p-4 border rounded-lg">
                 <Popover>
                     <PopoverTrigger asChild>
@@ -365,3 +365,4 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
   );
 }
 
+    
