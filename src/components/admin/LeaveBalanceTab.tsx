@@ -27,11 +27,11 @@ export function LeaveBalanceTab() {
 
   useEffect(() => {
     const q = collection(db, "leaveBalances");
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      let balancesData: LeaveBalance[] = snapshot.docs.map(doc => ({ ...doc.data() } as LeaveBalance));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const balancesData: LeaveBalance[] = snapshot.docs.map(doc => ({ ...doc.data() } as LeaveBalance));
       
-      // Ensure all users have a balance record for the current year
-      const usersSnapshot = await onSnapshot(collection(db, "users"), (usersDocs) => {
+      const usersQuery = query(collection(db, "users"));
+      const unsubUsers = onSnapshot(usersQuery, (usersDocs) => {
           const batch = writeBatch(db);
           let hasMissingBalances = false;
 
@@ -40,24 +40,27 @@ export function LeaveBalanceTab() {
               const hasBalance = balancesData.some(b => b.id === user.uid && b.year === CURRENT_YEAR);
               if (!hasBalance) {
                   hasMissingBalances = true;
-                  const newBalanceRef = doc(db, "leaveBalances", user.uid);
+                  const newBalanceRef = doc(db, "leaveBalances", `${user.uid}_${CURRENT_YEAR}`);
                   batch.set(newBalanceRef, { 
                       id: user.uid,
                       userName: user.name,
                       casual: 21,
                       vocation: 24,
                       past: 0,
+                      medical: 14,
                       year: CURRENT_YEAR
                   });
               }
           });
           if(hasMissingBalances){
-              batch.commit();
+              batch.commit().catch(err => console.error("Failed to create missing leave balances:", err));
           }
       });
-      
+
       setBalances(balancesData.filter(b => b.year === CURRENT_YEAR));
       setLoading(false);
+
+      return () => unsubUsers();
     });
     return () => unsubscribe();
   }, []);
@@ -67,12 +70,14 @@ export function LeaveBalanceTab() {
     
     setIsSubmitting(true);
     try {
-        const balanceDocRef = doc(db, "leaveBalances", currentBalance.id);
+        const docId = `${currentBalance.id}_${currentBalance.year}`;
+        const balanceDocRef = doc(db, "leaveBalances", docId);
         const dataToSave = {
             ...currentBalance,
             casual: Number(currentBalance.casual),
             vocation: Number(currentBalance.vocation),
             past: Number(currentBalance.past),
+            medical: Number(currentBalance.medical),
             year: Number(currentBalance.year),
         };
         await setDoc(balanceDocRef, dataToSave, { merge: true });
@@ -128,6 +133,10 @@ export function LeaveBalanceTab() {
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="past" className="text-right">Past</Label>
               <Input id="past" type="number" value={currentBalance?.past || 0} onChange={(e) => setCurrentBalance({ ...currentBalance, past: Number(e.target.value) })} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="medical" className="text-right">Medical</Label>
+              <Input id="medical" type="number" value={currentBalance?.medical || 0} onChange={(e) => setCurrentBalance({ ...currentBalance, medical: Number(e.target.value) })} className="col-span-3" />
             </div>
           </div>
           <DialogFooter>

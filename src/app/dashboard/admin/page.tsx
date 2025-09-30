@@ -46,7 +46,7 @@ function AdminPageContent() {
                     {canManageBalances && (
                         <TabsTrigger value="leave-balances">
                             <CalendarCog className="mr-2 h-4 w-4" />
-                            Leave Balances
+                            Manage Staff Leave Entitlements
                         </TabsTrigger>
                     )}
                 </TabsList>
@@ -84,7 +84,7 @@ function AdminPageContent() {
                     <TabsContent value="leave-balances">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Leave Balance Management</CardTitle>
+                                <CardTitle>Manage Staff Leave Entitlements</CardTitle>
                             </CardHeader>
                             <CardContent>
                                <LeaveBalanceTab />

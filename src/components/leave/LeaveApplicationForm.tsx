@@ -285,7 +285,7 @@ export function LeaveApplicationForm({ setOpen }: { setOpen: (open: boolean) => 
                     <PopoverContent className="w-auto p-0">
                         <Calendar
                             mode="single"
-                            captionLayout="dropdown-nav"
+                            captionLayout="dropdown"
                             fromYear={1900}
                             toYear={new Date().getFullYear() + 1}
                             selected={field.value}
@@ -310,7 +310,7 @@ export function LeaveApplicationForm({ setOpen }: { setOpen: (open: boolean) => 
                     <PopoverContent className="w-auto p-0">
                          <Calendar
                             mode="single"
-                            captionLayout="dropdown-nav"
+                            captionLayout="dropdown"
                             fromYear={1900}
                             toYear={new Date().getFullYear() + 1}
                             selected={field.value}

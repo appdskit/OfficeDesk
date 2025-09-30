@@ -105,5 +105,6 @@ export interface LeaveBalance {
     casual: number;
     vocation: number;
     past: number;
+    medical: number;
     year: number;
 }

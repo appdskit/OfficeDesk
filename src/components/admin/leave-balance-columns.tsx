@@ -45,6 +45,11 @@ export const getLeaveBalanceColumns = ({ onEdit }: GetColumnsProps): ColumnDef<L
     cell: ({ row }) => <div className="text-center">{row.getValue("past")}</div>,
   },
   {
+    accessorKey: "medical",
+    header: "Medical Leave",
+    cell: ({ row }) => <div className="text-center">{row.getValue("medical")}</div>,
+  },
+  {
     accessorKey: "year",
     header: "Year",
     cell: ({ row }) => <div className="text-center">{row.getValue("year")}</div>,
