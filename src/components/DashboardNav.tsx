@@ -24,7 +24,7 @@ import {
   LogOut,
   UserCircle,
   KeyRound,
-  ClipboardUser,
+  ClipboardList,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ADMIN_EMAILS } from "@/lib/config";
@@ -45,7 +45,7 @@ const menuItems = [
    { 
     href: "/dashboard/leave-subject-officer", 
     label: "Leave Subject Officer", 
-    icon: ClipboardUser,
+    icon: ClipboardList,
     permissions: ['leave:view_summary', 'leave:manage_balance'] 
   },
   { href: "/dashboard/file", label: "File", icon: FileText },
@@ -69,7 +69,12 @@ export function DashboardNav() {
   const hasPermission = (requiredPermissions?: string[]) => {
     if (!requiredPermissions) return true; // No permissions required
     if (!user?.profile?.permissions?.leave) return false;
-    return requiredPermissions.every(p => user.profile.permissions.leave.includes(p));
+    
+    // Check if user has ALL required permissions
+    return requiredPermissions.every(p => {
+        const [resource, action] = p.split(':');
+        return user.profile!.permissions[resource]?.includes(action);
+    });
   };
 
 
