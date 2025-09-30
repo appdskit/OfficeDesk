@@ -5,10 +5,7 @@ import React from 'react';
 import type { LeaveSummary, Division } from "@/lib/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "../ui/button";
-import { Printer, FileDown } from "lucide-react";
-import { saveAs } from 'file-saver';
-import asBlob from 'html-to-docx';
-
+import { Printer } from "lucide-react";
 
 interface LeaveSummaryPrintViewProps {
     summary: LeaveSummary;
@@ -18,61 +15,37 @@ interface LeaveSummaryPrintViewProps {
 export function LeaveSummaryPrintView({ summary, division }: LeaveSummaryPrintViewProps) {
     const printRef = React.useRef<HTMLDivElement>(null);
 
-    const getHtmlContent = () => {
-        if (printRef.current) {
-            return `
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>Print Leave Summary</title>
-                    <style>
-                        body { font-family: 'Times New Roman', Times, serif; line-height: 1.5; font-size: 12pt; }
-                        .summary-sheet { padding: 20px; }
-                        h1, h2, h3 { text-align: center; margin: 10px 0; }
-                        h1 { font-size: 16pt; font-weight: bold; }
-                        h2 { font-size: 14pt; }
-                        .header-table { width: 100%; border-collapse: collapse; margin-block: 20px; }
-                        .header-table td { border: none; padding: 4px 0; font-size: 12pt; }
-                        .leave-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                        .leave-table td, .leave-table th { border: 1px solid #000; padding: 8px; text-align: left; }
-                        .leave-table th { background-color: #f2f2f2; font-weight: bold; }
-                        .leave-table td:not(:first-child), .leave-table th:not(:first-child) { text-align: center; }
-                        .signature-area { margin-top: 80px; display: flex; justify-content: space-between; }
-                        .signature-box p { margin: 0; }
-                    </style>
-                </head>
-                <body>
-                    ${printRef.current.innerHTML}
-                </body>
-                </html>
-            `;
-        }
-        return '';
-    }
-
     const handlePrint = () => {
-        const htmlContent = getHtmlContent();
-        if (htmlContent) {
+        const printContent = printRef.current?.innerHTML;
+        if (printContent) {
             const printWindow = window.open('', '', 'height=800,width=800');
-            printWindow?.document.write(htmlContent);
+            printWindow?.document.write('<html><head><title>Print Leave Summary</title>');
+            printWindow?.document.write(`
+                <style>
+                    body { font-family: 'Times New Roman', Times, serif; line-height: 1.5; font-size: 12pt; }
+                    .summary-sheet { padding: 20px; }
+                    h1, h2, h3 { text-align: center; margin: 10px 0; }
+                    h1 { font-size: 16pt; font-weight: bold; }
+                    h2 { font-size: 14pt; }
+                    .header-table { width: 100%; border-collapse: collapse; margin-block: 20px; }
+                    .header-table td { border: none; padding: 4px 0; font-size: 12pt; }
+                    .leave-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    .leave-table td, .leave-table th { border: 1px solid #000; padding: 8px; text-align: left; }
+                    .leave-table th { background-color: #f2f2f2; font-weight: bold; }
+                    .leave-table td:not(:first-child), .leave-table th:not(:first-child) { text-align: center; }
+                    .signature-area { margin-top: 80px; display: flex; justify-content: space-between; }
+                    .signature-box p { margin: 0; }
+                </style>
+            `);
+            printWindow?.document.write('</head><body>');
+            printWindow?.document.write(printContent);
+            printWindow?.document.write('</body></html>');
             printWindow?.document.close();
             printWindow?.focus();
             printWindow?.print();
         }
     };
     
-    const handleDownloadWord = async () => {
-        const htmlContent = getHtmlContent();
-        if (htmlContent) {
-            try {
-                const blob = await asBlob(htmlContent);
-                saveAs(blob, `Leave_Summary_${summary.userName.replace(' ', '_')}.docx`);
-            } catch (e) {
-                console.error("Error generating Word document:", e);
-            }
-        }
-    };
-
     if (!summary) {
         return <p>No summary data to print.</p>;
     }
@@ -80,11 +53,7 @@ export function LeaveSummaryPrintView({ summary, division }: LeaveSummaryPrintVi
     return (
         <div className="flex flex-col h-full">
             <div className="flex-shrink-0 p-4 border-b print:hidden flex gap-2">
-                <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
-                <Button onClick={handleDownloadWord} variant="outline">
-                    <FileDown className="mr-2 h-4 w-4" />
-                    Download as Word
-                </Button>
+                <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print / Save as PDF</Button>
             </div>
             <ScrollArea className="flex-grow bg-gray-100">
                 <div ref={printRef} className="p-4 sm:p-8 bg-white shadow-lg my-4 mx-auto max-w-4xl">
