@@ -1,3 +1,4 @@
+
 import type { User as FirebaseUser } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
 
@@ -106,5 +107,20 @@ export interface LeaveBalance {
     vocation: number;
     past: number;
     medical: number;
+    year: number;
+}
+
+
+export interface LeaveSummary {
+    userId: string;
+    userName: string;
+    divisionId: string;
+    casualTaken: number;
+    vocationTaken: number;
+    medicalTaken: number;
+    totalCasual: number;
+    totalVocation: number;
+    totalPast: number;
+    totalMedical: number;
     year: number;
 }

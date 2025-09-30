@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { collection, onSnapshot, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { collection, onSnapshot, query, where, getDocs, Timestamp, doc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { LeaveApplication, LeaveBalance, Division, UserProfile } from "@/lib/types";
 import { DataTable } from "@/components/ui/data-table";
@@ -11,13 +11,20 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar as CalendarIcon, Download, Search } from "lucide-react";
+import { Calendar as CalendarIcon, Download, Loader2 } from "lucide-react";
 import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import { cn } from "@/lib/utils";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { LeaveSummaryPrintView } from "./LeaveSummaryPrintView";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
-type LeaveSummary = {
+export type LeaveSummary = {
     userId: string;
     userName: string;
     divisionId: string;
@@ -28,6 +35,7 @@ type LeaveSummary = {
     totalVocation: number;
     totalPast: number;
     totalMedical: number;
+    year: number;
 };
 
 export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveApplication[]) => void; }) {
@@ -38,6 +46,13 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
   const [selectedDivision, setSelectedDivision] = useState<string>("all");
   const [searchDate, setSearchDate] = useState<Date | undefined>(new Date());
   const [staffOnLeave, setStaffOnLeave] = useState<LeaveApplication[]>([]);
+  
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentBalance, setCurrentBalance] = useState<LeaveSummary | null>(null);
+  const [summaryToPrint, setSummaryToPrint] = useState<LeaveSummary | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const unsubDivisions = onSnapshot(collection(db, "divisions"), (snapshot) => {
@@ -51,76 +66,84 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
       const applicationsQuery = query(collection(db, "leaveApplications"), where("status", "==", "Approved"));
       const usersQuery = query(collection(db, "users"));
 
-      const [balancesSnapshot, applicationsSnapshot, usersSnapshot] = await Promise.all([
-          getDocs(balancesQuery),
-          getDocs(applicationsQuery),
-          getDocs(usersQuery),
-      ]);
+      try {
+        const [balancesSnapshot, applicationsSnapshot, usersSnapshot] = await Promise.all([
+            getDocs(balancesQuery),
+            getDocs(applicationsQuery),
+            getDocs(usersQuery),
+        ]);
 
-      const balances = balancesSnapshot.docs.map(doc => doc.data() as LeaveBalance);
-      const applications = applicationsSnapshot.docs.map(doc => {
-          const data = doc.data();
-          // Correctly convert timestamps to dates
-          return { 
-              ...data, 
-              id: doc.id, 
-              startDate: (data.startDate as Timestamp).toDate(), 
-              resumeDate: (data.resumeDate as Timestamp).toDate(),
-              createdAt: (data.createdAt as Timestamp).toDate(),
-              updatedAt: (data.updatedAt as Timestamp).toDate(),
-          } as LeaveApplication;
-      });
-      const users = usersSnapshot.docs.map(doc => doc.data() as UserProfile);
-
-      setAllApplications(applications);
-
-      const summary: LeaveSummary[] = users.map(user => {
-        const userBalance = balances.find(b => b.id === user.uid) || { casual: 0, vocation: 0, past: 0, medical: 0 };
-        const userApplications = applications.filter(app => {
-            const appYear = app.startDate.getFullYear();
-            return app.userId === user.uid && appYear === CURRENT_YEAR;
+        const balances = balancesSnapshot.docs.map(doc => doc.data() as LeaveBalance);
+        const applications = applicationsSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return { 
+                ...data, 
+                id: doc.id, 
+                startDate: data.startDate instanceof Timestamp ? data.startDate.toDate() : new Date(data.startDate), 
+                resumeDate: data.resumeDate instanceof Timestamp ? data.resumeDate.toDate() : new Date(data.resumeDate),
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt),
+                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(data.updatedAt),
+            } as LeaveApplication;
         });
-        
-        const casualTaken = userApplications.filter(app => app.leaveType === 'Casual' || app.leaveType.includes('Leave')).reduce((acc, app) => acc + app.leaveDays, 0);
-        const vocationTaken = userApplications.filter(app => app.leaveType === 'Vocation').reduce((acc, app) => acc + app.leaveDays, 0);
-        const medicalTaken = userApplications.filter(app => app.leaveType === 'Medical').reduce((acc, app) => acc + app.leaveDays, 0);
+        const users = usersSnapshot.docs.map(doc => doc.data() as UserProfile);
 
-        return {
-          userId: user.uid,
-          userName: user.name,
-          divisionId: user.divisionId || '',
-          casualTaken,
-          vocationTaken,
-          medicalTaken,
-          totalCasual: userBalance.casual,
-          totalVocation: userBalance.vocation,
-          totalPast: userBalance.past,
-          totalMedical: userBalance.medical,
-        };
-      });
+        setAllApplications(applications);
 
-      setSummaryData(summary);
-      setLoading(false);
+        const summary: LeaveSummary[] = users.map(user => {
+            const userBalance = balances.find(b => b.id === user.uid) || { casual: 0, vocation: 0, past: 0, medical: 0, year: CURRENT_YEAR };
+            const userApplications = applications.filter(app => {
+                const appYear = app.startDate.getFullYear();
+                return app.userId === user.uid && appYear === CURRENT_YEAR;
+            });
+            
+            const casualTaken = userApplications.filter(app => app.leaveType === 'Casual' || app.leaveType.includes('Leave')).reduce((acc, app) => acc + app.leaveDays, 0);
+            const vocationTaken = userApplications.filter(app => app.leaveType === 'Vocation').reduce((acc, app) => acc + app.leaveDays, 0);
+            const medicalTaken = userApplications.filter(app => app.leaveType === 'Medical').reduce((acc, app) => acc + app.leaveDays, 0);
+
+            return {
+                userId: user.uid,
+                userName: user.name,
+                divisionId: user.divisionId || '',
+                casualTaken,
+                vocationTaken,
+                medicalTaken,
+                totalCasual: userBalance.casual,
+                totalVocation: userBalance.vocation,
+                totalPast: userBalance.past,
+                totalMedical: userBalance.medical,
+                year: userBalance.year,
+            };
+        });
+
+        setSummaryData(summary);
+      } catch (error) {
+        console.error("Error fetching leave summary:", error);
+        toast({ variant: "destructive", title: "Permission Error", description: "Could not fetch leave summary data. Please check your permissions."});
+      } finally {
+        setLoading(false);
+      }
     };
 
-    // Initial fetch
     fetchSummary();
-    // Listen for real-time updates on approved applications
     const unsubApps = onSnapshot(query(collection(db, "leaveApplications"), where("status", "==", "Approved")), fetchSummary);
     
     return () => {
         unsubDivisions();
         unsubApps();
     };
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (searchDate) {
         const startOfSearchDate = startOfDay(searchDate);
         const onLeave = allApplications.filter(app => {
-            const leaveInterval = { start: startOfDay(app.startDate), end: endOfDay(app.resumeDate) };
-            // Check if the search date is within the leave interval (inclusive)
-            return isWithinInterval(startOfSearchDate, leaveInterval);
+            try {
+                const leaveInterval = { start: startOfDay(app.startDate), end: endOfDay(app.resumeDate) };
+                return isWithinInterval(startOfSearchDate, leaveInterval);
+            } catch (e) {
+                console.warn("Invalid date encountered in application:", app.id, app.startDate, app.resumeDate);
+                return false;
+            }
         });
         setStaffOnLeave(onLeave);
     }
@@ -160,6 +183,43 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
     link.click();
     document.body.removeChild(link);
   };
+  
+  const openEditDialog = (balance: LeaveSummary) => {
+    setCurrentBalance(balance);
+    setIsEditDialogOpen(true);
+  };
+
+  const openPrintDialog = (summary: LeaveSummary) => {
+    setSummaryToPrint(summary);
+    setIsPrintDialogOpen(true);
+  }
+
+  const handleSaveBalance = async () => {
+    if (!currentBalance || !currentBalance.userId) return;
+    
+    setIsSubmitting(true);
+    try {
+        const docId = `${currentBalance.userId}_${currentBalance.year}`;
+        const balanceDocRef = doc(db, "leaveBalances", docId);
+        const dataToSave = {
+            id: currentBalance.userId,
+            userName: currentBalance.userName,
+            casual: Number(currentBalance.totalCasual),
+            vocation: Number(currentBalance.totalVocation),
+            past: Number(currentBalance.totalPast),
+            medical: Number(currentBalance.totalMedical),
+            year: Number(currentBalance.year),
+        };
+        await setDoc(balanceDocRef, dataToSave, { merge: true });
+        toast({ title: "Leave balance updated successfully." });
+        setIsEditDialogOpen(false);
+        setCurrentBalance(null);
+    } catch (error) {
+        toast({ variant: "destructive", title: "An error occurred.", description: (error as Error).message });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
 
   const summaryColumns = useMemo(() => [
       { accessorKey: 'userName', header: 'Staff Name' },
@@ -173,6 +233,33 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
       { accessorKey: 'totalPast', header: 'Past Leave' },
       { accessorKey: 'totalMedical', header: 'Total Medical' },
       { accessorKey: 'medicalTaken', header: 'Medical Taken' },
+      {
+        id: "actions",
+        cell: ({ row }: { row: { original: LeaveSummary }}) => {
+          const summary = row.original;
+          return (
+            <div className="text-right">
+                <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="h-8 w-8 p-0">
+                    <span className="sr-only">Open menu</span>
+                    <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => openEditDialog(summary)}>
+                        Edit Balance
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openPrintDialog(summary)}>
+                        Print Summary
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+          );
+        },
+      },
   ], [divisions]);
 
   if (loading) {
@@ -229,8 +316,52 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
             </div>
             <DataTable columns={summaryColumns} data={filteredSummaryData} filterColumn="userName" />
         </div>
+        
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Edit Leave Balance for {currentBalance?.userName}</DialogTitle>
+                    <DialogDescription>
+                        Update the leave days available for the year {currentBalance?.year}.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="casual" className="text-right">Casual</Label>
+                    <Input id="casual" type="number" value={currentBalance?.totalCasual || 0} onChange={(e) => setCurrentBalance(prev => prev ? { ...prev, totalCasual: Number(e.target.value) } : null)} className="col-span-3" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="vocation" className="text-right">Vocation</Label>
+                    <Input id="vocation" type="number" value={currentBalance?.totalVocation || 0} onChange={(e) => setCurrentBalance(prev => prev ? { ...prev, totalVocation: Number(e.target.value) } : null)} className="col-span-3" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="past" className="text-right">Past</Label>
+                    <Input id="past" type="number" value={currentBalance?.totalPast || 0} onChange={(e) => setCurrentBalance(prev => prev ? { ...prev, totalPast: Number(e.target.value) } : null)} className="col-span-3" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="medical" className="text-right">Medical</Label>
+                    <Input id="medical" type="number" value={currentBalance?.totalMedical || 0} onChange={(e) => setCurrentBalance(prev => prev ? { ...prev, totalMedical: Number(e.target.value) } : null)} className="col-span-3" />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSaveBalance} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Changes
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+        
+        <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
+            <DialogContent className="max-w-4xl h-[90vh]">
+                 <DialogHeader>
+                    <DialogTitle>Print Leave Summary for {summaryToPrint?.userName}</DialogTitle>
+                </DialogHeader>
+                {summaryToPrint && <LeaveSummaryPrintView summary={summaryToPrint} division={divisions.find(d => d.id === summaryToPrint.divisionId)} />}
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }
 
-    
