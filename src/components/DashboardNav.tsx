@@ -42,12 +42,6 @@ const menuItems = [
     adminOnly: true,
   },
   { href: "/dashboard/leave", label: "Leave", icon: CalendarCheck },
-   { 
-    href: "/dashboard/leave-subject-officer", 
-    label: "Leave Subject Officer", 
-    icon: ClipboardList,
-    permissions: ['leave:view_summary', 'leave:manage_balance'] 
-  },
   { href: "/dashboard/file", label: "File", icon: FileText },
   { href: "/dashboard/inventory", label: "Inventory", icon: Boxes },
   { href: "/dashboard/staff", label: "Staff", icon: Users },
