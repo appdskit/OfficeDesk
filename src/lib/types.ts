@@ -107,6 +107,8 @@ export interface LeaveBalance {
     vocation: number;
     past: number;
     medical: number;
+    shortLeave: number;
+    halfDayLeave: number;
     year: number;
 }
 

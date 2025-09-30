@@ -24,6 +24,7 @@ import {
   LogOut,
   UserCircle,
   KeyRound,
+  ClipboardUser,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ADMIN_EMAILS } from "@/lib/config";
@@ -41,6 +42,12 @@ const menuItems = [
     adminOnly: true,
   },
   { href: "/dashboard/leave", label: "Leave", icon: CalendarCheck },
+   { 
+    href: "/dashboard/leave-subject-officer", 
+    label: "Leave Subject Officer", 
+    icon: ClipboardUser,
+    permissions: ['leave:view_summary', 'leave:manage_balance'] 
+  },
   { href: "/dashboard/file", label: "File", icon: FileText },
   { href: "/dashboard/inventory", label: "Inventory", icon: Boxes },
   { href: "/dashboard/staff", label: "Staff", icon: Users },
@@ -58,6 +65,13 @@ export function DashboardNav() {
   const { user } = useAuth();
   const { toast } = useToast();
   const isAdmin = user?.email ? ADMIN_EMAILS.includes(user.email) : false;
+
+  const hasPermission = (requiredPermissions?: string[]) => {
+    if (!requiredPermissions) return true; // No permissions required
+    if (!user?.profile?.permissions?.leave) return false;
+    return requiredPermissions.every(p => user.profile.permissions.leave.includes(p));
+  };
+
 
   const handleLogout = async () => {
     try {
@@ -82,11 +96,14 @@ export function DashboardNav() {
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
-          {menuItems.filter(item => !item.adminOnly || isAdmin).map((item) => (
+          {menuItems
+            .filter(item => !item.adminOnly || isAdmin)
+            .filter(item => hasPermission(item.permissions))
+            .map((item) => (
              <SidebarMenuItem key={item.href}>
                 <Link href={item.href} passHref>
                   <SidebarMenuButton
-                    isActive={pathname === item.href}
+                    isActive={pathname.startsWith(item.href)}
                     tooltip={item.label}
                   >
                     <item.icon />

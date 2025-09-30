@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { collection, onSnapshot, doc, setDoc, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, doc, setDoc, writeBatch, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { LeaveBalance, UserProfile } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,8 @@ export function LeaveBalanceTab() {
                       vocation: 24,
                       past: 0,
                       medical: 14,
+                      shortLeave: 24, // 2 per month
+                      halfDayLeave: 0, // No limit specified, start at 0
                       year: CURRENT_YEAR
                   });
               }
@@ -78,6 +80,8 @@ export function LeaveBalanceTab() {
             vocation: Number(currentBalance.vocation),
             past: Number(currentBalance.past),
             medical: Number(currentBalance.medical),
+            shortLeave: Number(currentBalance.shortLeave),
+            halfDayLeave: Number(currentBalance.halfDayLeave),
             year: Number(currentBalance.year),
         };
         await setDoc(balanceDocRef, dataToSave, { merge: true });
@@ -137,6 +141,14 @@ export function LeaveBalanceTab() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="medical" className="text-right">Medical</Label>
               <Input id="medical" type="number" value={currentBalance?.medical || 0} onChange={(e) => setCurrentBalance({ ...currentBalance, medical: Number(e.target.value) })} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="shortLeave" className="text-right">Short Leave</Label>
+              <Input id="shortLeave" type="number" value={currentBalance?.shortLeave || 0} onChange={(e) => setCurrentBalance({ ...currentBalance, shortLeave: Number(e.target.value) })} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="halfDayLeave" className="text-right">Half-Day Leave</Label>
+              <Input id="halfDayLeave" type="number" value={currentBalance?.halfDayLeave || 0} onChange={(e) => setCurrentBalance({ ...currentBalance, halfDayLeave: Number(e.target.value) })} className="col-span-3" />
             </div>
           </div>
           <DialogFooter>
