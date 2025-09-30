@@ -5,7 +5,9 @@ import React from 'react';
 import type { LeaveSummary, Division } from "@/lib/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "../ui/button";
-import { Printer } from "lucide-react";
+import { Printer, Download } from "lucide-react";
+import { saveAs } from 'file-saver';
+
 
 interface LeaveSummaryPrintViewProps {
     summary: LeaveSummary;
@@ -27,7 +29,7 @@ export function LeaveSummaryPrintView({ summary, division }: LeaveSummaryPrintVi
                     h1, h2, h3 { text-align: center; margin: 10px 0; }
                     h1 { font-size: 16pt; font-weight: bold; }
                     h2 { font-size: 14pt; }
-                    .header-table { width: 100%; border-collapse: collapse; margin-block: 20px; }
+                    .header-table { width: 100%; border-collapse: collapse; margin-block: 20px; border: none; }
                     .header-table td { border: none; padding: 4px 0; font-size: 12pt; }
                     .leave-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
                     .leave-table td, .leave-table th { border: 1px solid #000; padding: 8px; text-align: left; }
@@ -45,6 +47,80 @@ export function LeaveSummaryPrintView({ summary, division }: LeaveSummaryPrintVi
             printWindow?.print();
         }
     };
+
+    const handleDownloadWord = async () => {
+        const { Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType, BorderStyle, HeadingLevel } = await import('docx');
+
+        const leaveData = [
+            ["Casual", summary.totalCasual, summary.casualTaken, summary.totalCasual - summary.casualTaken],
+            ["Vocation", summary.totalVocation, summary.vocationTaken, summary.totalVocation - summary.vocationTaken],
+            ["Past Leave", summary.totalPast, "-", summary.totalPast - summary.vocationTaken > 0 ? summary.totalPast - summary.vocationTaken : 0],
+            ["Medical", summary.totalMedical, summary.medicalTaken, summary.totalMedical - summary.medicalTaken],
+        ];
+
+        const table = new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+                new TableRow({
+                    children: [
+                        new TableCell({ children: [new Paragraph({ text: "Leave Type", style: "strong" })] }),
+                        new TableCell({ children: [new Paragraph({ text: "Total Entitlement", style: "strong" })] }),
+                        new TableCell({ children: [new Paragraph({ text: "Leave Taken", style: "strong" })] }),
+                        new TableCell({ children: [new Paragraph({ text: "Balance", style: "strong" })] }),
+                    ],
+                }),
+                ...leaveData.map(row => new TableRow({
+                    children: row.map(cell => new TableCell({ children: [new Paragraph(String(cell))] }))
+                })),
+            ],
+        });
+
+        const doc = new Document({
+            sections: [{
+                children: [
+                    new Paragraph({ text: `Leave Entitlement - ${summary.year}`, heading: HeadingLevel.HEADING_1, style: "center" }),
+                    new Paragraph({ text: `Name of Officer: ${summary.userName}` }),
+                    new Paragraph({ text: `Division: ${division?.name || 'N/A'}` }),
+                    new Paragraph({ text: " " }), // Spacer
+                    table,
+                     new Paragraph({ text: " " }),
+                     new Paragraph({ text: " " }),
+                     new Paragraph({ text: " " }),
+                    new Table({
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                         borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }, insideHorizontal: { style: BorderStyle.NONE }, insideVertical: { style: BorderStyle.NONE } },
+                        rows: [
+                           new TableRow({
+                               children: [
+                                   new TableCell({ children: [new Paragraph("........................................"), new Paragraph("Signature of Subject Clerk")], borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }} }),
+                                   new TableCell({ children: [new Paragraph("........................................"), new Paragraph("Signature of Officer")], borders: { top: { style: BorderStyle.NONE }, bottom: { style: BorderStyle.NONE }, left: { style: BorderStyle.NONE }, right: { style: BorderStyle.NONE }} }),
+                               ],
+                           }),
+                        ],
+                    }),
+                ],
+            }],
+             styles: {
+                paragraphStyles: [{
+                    id: "center",
+                    name: "Center",
+                    basedOn: "Normal",
+                    next: "Normal",
+                    run: { size: 24 },
+                    paragraph: { alignment: 'center' },
+                },
+                {
+                    id: "strong",
+                    name: "Strong",
+                    basedOn: "Normal",
+                    run: { bold: true },
+                }]
+             }
+        });
+
+        const blob = await Packer.toBlob(doc);
+        saveAs(blob, `Leave_Summary_${summary.userName}.docx`);
+    };
     
     if (!summary) {
         return <p>No summary data to print.</p>;
@@ -54,6 +130,7 @@ export function LeaveSummaryPrintView({ summary, division }: LeaveSummaryPrintVi
         <div className="flex flex-col h-full">
             <div className="flex-shrink-0 p-4 border-b print:hidden flex gap-2">
                 <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print / Save as PDF</Button>
+                <Button onClick={handleDownloadWord} variant="outline"><Download className="mr-2 h-4 w-4" /> Download as Word</Button>
             </div>
             <ScrollArea className="flex-grow bg-gray-100">
                 <div ref={printRef} className="p-4 sm:p-8 bg-white shadow-lg my-4 mx-auto max-w-4xl">
