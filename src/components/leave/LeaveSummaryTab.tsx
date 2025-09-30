@@ -21,6 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { LeaveSummaryPrintView } from "./LeaveSummaryPrintView";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader } from "../ui/card";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -79,10 +81,10 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
             return { 
                 ...data, 
                 id: doc.id, 
-                startDate: data.startDate instanceof Timestamp ? data.startDate.toDate() : new Date(data.startDate.seconds * 1000), 
-                resumeDate: data.resumeDate instanceof Timestamp ? data.resumeDate.toDate() : new Date(data.resumeDate.seconds * 1000),
-                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt.seconds * 1000),
-                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(data.updatedAt.seconds * 1000),
+                startDate: data.startDate instanceof Timestamp ? data.startDate.toDate() : new Date(data.startDate), 
+                resumeDate: data.resumeDate instanceof Timestamp ? data.resumeDate.toDate() : new Date(data.resumeDate),
+                createdAt: data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date(data.createdAt),
+                updatedAt: data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date(data.updatedAt),
             } as LeaveApplication;
         });
         const users = usersSnapshot.docs.map(doc => doc.data() as UserProfile);
@@ -267,55 +269,70 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
   }
 
   return (
-    <div className="space-y-6">
-        <div>
-            <h3 className="text-lg font-semibold mb-2">Today On Leave</h3>
-            <div className="flex items-center gap-4 p-4 border rounded-lg">
-                <Popover>
-                    <PopoverTrigger asChild>
-                        <Button variant={"outline"} className={cn("w-[280px] justify-start text-left font-normal", !searchDate && "text-muted-foreground")}>
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {searchDate ? format(searchDate, "PPP") : <span>Pick a date</span>}
+    <Tabs defaultValue="today-on-leave" className="space-y-4">
+        <TabsList>
+            <TabsTrigger value="today-on-leave">Today On Leave</TabsTrigger>
+            <TabsTrigger value="staff-leave-summary">Staff Leave Summary</TabsTrigger>
+        </TabsList>
+        <TabsContent value="today-on-leave">
+             <Card>
+                <CardHeader>
+                    <CardTitle>Today On Leave</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div className="flex items-center gap-4 p-4 border rounded-lg">
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant={"outline"} className={cn("w-[280px] justify-start text-left font-normal", !searchDate && "text-muted-foreground")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {searchDate ? format(searchDate, "PPP") : <span>Pick a date</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0">
+                                <Calendar mode="single" selected={searchDate} onSelect={setSearchDate} initialFocus />
+                            </PopoverContent>
+                        </Popover>
+                        <div className="text-sm text-muted-foreground">
+                            {staffOnLeave.length > 0 ? `${staffOnLeave.length} staff member(s) on leave.` : "No staff on leave on this date."}
+                        </div>
+                    </div>
+                    {staffOnLeave.length > 0 && (
+                        <div className="p-4">
+                            <ul className="list-disc pl-5 space-y-1">
+                                {staffOnLeave.map(app => <li key={app.id}>{app.userName} ({app.leaveType})</li>)}
+                            </ul>
+                        </div>
+                    )}
+                </CardContent>
+             </Card>
+        </TabsContent>
+        <TabsContent value="staff-leave-summary">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Staff Leave Summary</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex items-center justify-between py-4">
+                        <div className="flex items-center gap-2">
+                            <Select value={selectedDivision} onValueChange={setSelectedDivision}>
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="Filter by Division" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All Divisions</SelectItem>
+                                    {divisions.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <Button onClick={downloadCSV} variant="outline" size="sm">
+                            <Download className="mr-2 h-4 w-4" />
+                            Download CSV
                         </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                        <Calendar mode="single" selected={searchDate} onSelect={setSearchDate} initialFocus />
-                    </PopoverContent>
-                </Popover>
-                 <div className="text-sm text-muted-foreground">
-                    {staffOnLeave.length > 0 ? `${staffOnLeave.length} staff member(s) on leave.` : "No staff on leave on this date."}
-                </div>
-            </div>
-             {staffOnLeave.length > 0 && (
-                <div className="p-4">
-                    <ul className="list-disc pl-5 space-y-1">
-                        {staffOnLeave.map(app => <li key={app.id}>{app.userName} ({app.leaveType})</li>)}
-                    </ul>
-                </div>
-            )}
-        </div>
-        
-        <div>
-            <h3 className="text-lg font-semibold mb-2">Staff Leave Summary</h3>
-            <div className="flex items-center justify-between py-4">
-                 <div className="flex items-center gap-2">
-                    <Select value={selectedDivision} onValueChange={setSelectedDivision}>
-                        <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="Filter by Division" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Divisions</SelectItem>
-                            {divisions.map(d => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                 </div>
-                <Button onClick={downloadCSV} variant="outline" size="sm">
-                    <Download className="mr-2 h-4 w-4" />
-                    Download CSV
-                </Button>
-            </div>
-            <DataTable columns={summaryColumns} data={filteredSummaryData} filterColumn="userName" />
-        </div>
+                    </div>
+                    <DataTable columns={summaryColumns} data={filteredSummaryData} filterColumn="userName" />
+                </CardContent>
+            </Card>
+        </TabsContent>
         
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
             <DialogContent>
@@ -361,8 +378,6 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
                 {summaryToPrint && <LeaveSummaryPrintView summary={summaryToPrint} division={divisions.find(d => d.id === summaryToPrint.divisionId)} />}
             </DialogContent>
         </Dialog>
-    </div>
+    </Tabs>
   );
 }
-
-    
