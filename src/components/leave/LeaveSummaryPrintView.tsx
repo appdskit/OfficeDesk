@@ -25,19 +25,23 @@ export function LeaveSummaryPrintView({ summary, division }: LeaveSummaryPrintVi
                     body { font-family: 'Times New Roman', Times, serif; line-height: 1.5; font-size: 12pt; }
                     .summary-sheet { padding: 20px; }
                     h1, h2, h3 { text-align: center; margin: 10px 0; }
-                    h1 { font-size: 16pt; }
+                    h1 { font-size: 16pt; font-weight: bold; }
                     h2 { font-size: 14pt; }
-                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                    td, th { border: 1px solid #000; padding: 8px; text-align: left; }
-                    .header-table td { border: none; padding: 2px 0; }
-                    .leave-table th { background-color: #f2f2f2; }
-                    .leave-table td:nth-child(n+2) { text-align: center; } /* Center align numeric columns */
+                    .header-table { width: 100%; border-collapse: collapse; margin-block: 20px; }
+                    .header-table td { border: none; padding: 4px 0; font-size: 12pt; }
+                    .leave-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    .leave-table td, .leave-table th { border: 1px solid #000; padding: 8px; text-align: left; }
+                    .leave-table th { background-color: #f2f2f2; font-weight: bold; }
+                    .leave-table td:not(:first-child), .leave-table th:not(:first-child) { text-align: center; }
+                    .signature-area { margin-top: 80px; display: flex; justify-content: space-between; }
+                    .signature-box p { margin: 0; }
                 </style>
             `);
             printWindow?.document.write('</head><body>');
             printWindow?.document.write(printContent);
             printWindow?.document.write('</body></html>');
             printWindow?.document.close();
+            printWindow?.focus();
             printWindow?.print();
         }
     };
@@ -48,11 +52,11 @@ export function LeaveSummaryPrintView({ summary, division }: LeaveSummaryPrintVi
 
     return (
         <div className="flex flex-col h-full">
-            <div className="flex-shrink-0 p-4 border-b">
+            <div className="flex-shrink-0 p-4 border-b print:hidden">
                 <Button onClick={handlePrint}><Printer className="mr-2 h-4 w-4" /> Print</Button>
             </div>
             <ScrollArea className="flex-grow bg-gray-100">
-                <div ref={printRef} className="p-4 sm:p-8 bg-white shadow-lg my-4 mx-auto max-w-3xl">
+                <div ref={printRef} className="p-4 sm:p-8 bg-white shadow-lg my-4 mx-auto max-w-4xl">
                     <div className="summary-sheet">
                         <h1>Leave Entitlement - {summary.year}</h1>
                         
@@ -95,7 +99,7 @@ export function LeaveSummaryPrintView({ summary, division }: LeaveSummaryPrintVi
                                     <td>Past Leave</td>
                                     <td>{summary.totalPast}</td>
                                     <td>-</td>
-                                    <td>{summary.totalPast}</td>
+                                    <td>{summary.totalPast - summary.vocationTaken > 0 ? summary.totalPast - summary.vocationTaken : 0}</td>
                                 </tr>
                                 <tr>
                                     <td>Medical</td>
@@ -106,12 +110,12 @@ export function LeaveSummaryPrintView({ summary, division }: LeaveSummaryPrintVi
                             </tbody>
                         </table>
 
-                        <div style={{marginTop: '80px', display: 'flex', justifyContent: 'space-between'}}>
-                             <div>
+                        <div className="signature-area">
+                             <div className="signature-box">
                                 <p>........................................</p>
                                 <p>Signature of Subject Clerk</p>
                             </div>
-                            <div>
+                            <div className="signature-box">
                                 <p>........................................</p>
                                 <p>Signature of Officer</p>
                             </div>
@@ -122,4 +126,3 @@ export function LeaveSummaryPrintView({ summary, division }: LeaveSummaryPrintVi
         </div>
     );
 }
-
