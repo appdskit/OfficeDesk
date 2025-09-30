@@ -7,7 +7,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "../ui/button";
 import { Printer, FileDown } from "lucide-react";
 import { saveAs } from 'file-saver';
-import { asBlob } from 'html-to-docx';
+import asBlob from 'html-to-docx';
+
 
 interface LeaveSummaryPrintViewProps {
     summary: LeaveSummary;
