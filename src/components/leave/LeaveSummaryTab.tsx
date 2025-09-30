@@ -60,7 +60,15 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
       const balances = balancesSnapshot.docs.map(doc => doc.data() as LeaveBalance);
       const applications = applicationsSnapshot.docs.map(doc => {
           const data = doc.data();
-          return { ...data, id: doc.id, startDate: (data.startDate as Timestamp).toDate(), resumeDate: (data.resumeDate as Timestamp).toDate() } as LeaveApplication;
+          // Correctly convert timestamps to dates
+          return { 
+              ...data, 
+              id: doc.id, 
+              startDate: (data.startDate as Timestamp).toDate(), 
+              resumeDate: (data.resumeDate as Timestamp).toDate(),
+              createdAt: (data.createdAt as Timestamp).toDate(),
+              updatedAt: (data.updatedAt as Timestamp).toDate(),
+          } as LeaveApplication;
       });
       const users = usersSnapshot.docs.map(doc => doc.data() as UserProfile);
 
@@ -68,7 +76,10 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
 
       const summary: LeaveSummary[] = users.map(user => {
         const userBalance = balances.find(b => b.id === user.uid) || { casual: 0, vocation: 0, past: 0, medical: 0 };
-        const userApplications = applications.filter(app => app.userId === user.uid);
+        const userApplications = applications.filter(app => {
+            const appYear = app.startDate.getFullYear();
+            return app.userId === user.uid && appYear === CURRENT_YEAR;
+        });
         
         const casualTaken = userApplications.filter(app => app.leaveType === 'Casual' || app.leaveType.includes('Leave')).reduce((acc, app) => acc + app.leaveDays, 0);
         const vocationTaken = userApplications.filter(app => app.leaveType === 'Vocation').reduce((acc, app) => acc + app.leaveDays, 0);
@@ -92,7 +103,9 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
       setLoading(false);
     };
 
+    // Initial fetch
     fetchSummary();
+    // Listen for real-time updates on approved applications
     const unsubApps = onSnapshot(query(collection(db, "leaveApplications"), where("status", "==", "Approved")), fetchSummary);
     
     return () => {
@@ -104,9 +117,11 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
   useEffect(() => {
     if (searchDate) {
         const startOfSearchDate = startOfDay(searchDate);
-        const onLeave = allApplications.filter(app => 
-            isWithinInterval(startOfSearchDate, { start: startOfDay(app.startDate), end: endOfDay(app.resumeDate) })
-        );
+        const onLeave = allApplications.filter(app => {
+            const leaveInterval = { start: startOfDay(app.startDate), end: endOfDay(app.resumeDate) };
+            // Check if the search date is within the leave interval (inclusive)
+            return isWithinInterval(startOfSearchDate, leaveInterval);
+        });
         setStaffOnLeave(onLeave);
     }
   }, [searchDate, allApplications]);
@@ -217,3 +232,5 @@ export function LeaveSummaryTab({ onPrint }: { onPrint: (applications: LeaveAppl
     </div>
   );
 }
+
+    
